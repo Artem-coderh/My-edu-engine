@@ -55,7 +55,6 @@ void scanline_raster(Vector2_t p1, Vector2_t p2, Vector2_t p3,
 
 	if (y1 == y3) return;
 
-	// 2. Отрисовка верхней половины треугольника (от p1.y до p2.y)
 	if (y1 != y2) {
 		double dx_left = (p2.x - p1.x) / (p2.y - p1.y);
 		double dx_right = (p3.x - p1.x) / (p3.y - p1.y);
