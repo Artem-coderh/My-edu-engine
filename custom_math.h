@@ -13,6 +13,7 @@ typedef struct {
 typedef struct {
 	Vector2_t pos;
 	UV_t uv;
+	double z;
 } Vertex_t;
 
 double fov_factor(double fov_in_deg, double width);

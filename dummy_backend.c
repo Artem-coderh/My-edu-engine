@@ -2,8 +2,6 @@
 #include "render.h"
 #include <stdio.h>
 
-#define H 256
-#define W 256
 char screen[H * W];
 
 void drawpixel(Vector2_t a, unsigned char color) {
@@ -24,13 +22,15 @@ void Render_frame(Vector3_t *vertices, int vertices_count, UV_t *uvs,
 	const Vector2_t screen_dim = {H, W};
 	const double fov = fov_factor(75.0, 256.0);
 
+	clear_zbuf();
 	for (int i = 0; i < vertices_count; i++) {
 		Vector3_t t_2 = move_to_xyz(vertices[i], camera_pos);
 		t_2 = euler_rotate(camera_rot, t_2);
 		t[i] = xyz_to_xy(t_2, fov, screen_dim);
+		t[i].uv = uvs[i];
+		t[i].z = t_2.z;
 	}
-	fill_uvs(t, vertices_count, uvs);
 
 	render_solid_texture(t, vertices_count, drawpixel);
-	render_wireframe(t, vertices_count, drawpixel);
+//	render_wireframe(t, vertices_count, drawpixel);
 }
