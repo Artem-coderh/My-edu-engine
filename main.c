@@ -31,7 +31,7 @@ Vector3_t vertices[36] = {
 
 int main() {
 	const Vector3_t ZEROVEC = {0,0,0};
-	const Vector3_t POSCAM = {0,0,-3};
+	const Vector3_t POSCAM = {0,1,-3};
 
 	Render_frame(vertices, 36, POSCAM, ZEROVEC);
 	print_fbdata();
