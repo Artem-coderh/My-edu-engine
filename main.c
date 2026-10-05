@@ -57,7 +57,7 @@ Vector3_t vertices[36] = {
 };
 
 int main() {
-	const Vector3_t ZEROVEC = {0,0,0};
+	const Vector3_t ZEROVEC = {0,45,0};
 	const Vector3_t POSCAM = {-1,1,-3};
 
 	Render_frame(vertices, 36, uvs, POSCAM, ZEROVEC);

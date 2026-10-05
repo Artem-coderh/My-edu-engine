@@ -39,12 +39,7 @@ Vector3_t euler_rotate(Vector3_t rot, Vector3_t vertex) {
 Vertex_t xyz_to_xy(Vector3_t vertex, double fov_factor,
 		Vector2_t screen_dim) {
 	Vertex_t result;
-
-	if (vertex.z <= 0.0)
-		vertex.z = 0.001;
-
 	result.pos.x = round(screen_dim.x / 2.0 + vertex.x / vertex.z * fov_factor);
 	result.pos.y = round(screen_dim.y / 2.0 - vertex.y / vertex.z * fov_factor);
-
 	return result;
 }

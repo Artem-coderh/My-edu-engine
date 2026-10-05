@@ -7,3 +7,4 @@ echo "LD engine"
 gcc *.o -g -o engine || exit -1
 echo "RUN test_output"
 ./engine | magick -size 256x256 -depth 8 gray:- bmp:- | feh -
+./engine | magick -size 256x256 -depth 8 gray:- bmp:- > /tmp/debug.bmp

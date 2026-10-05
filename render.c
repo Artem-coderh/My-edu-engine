@@ -1,17 +1,14 @@
+#include <stdio.h>
 #include <math.h>
+#include <float.h>
 #include <stdlib.h>
 #include "texture.h"
 #include "custom_math.h"
 #include "render.h"
+#define PERSP
+#define TEX_SIZE 64
 
-char z_buffer[H * W];
-
-void clear_zbuf() {
-	for (int i = 0; i < H * W; i++) {
-		z_buffer[i] = -100000.0;
-	}
-	return;
-}
+static float g_zbuf[H * W];
 
 void drawline(Vector2_t a, Vector2_t b, drawpixel_t drawpixel) {
 	int x1 = (int)a.x;
@@ -52,63 +49,110 @@ void render_wireframe(Vertex_t *vertexes, int count, drawpixel_t drawpixel) {
 	return;
 }
 
-Vertex_t interpolate_vertex(Vertex_t v1, Vertex_t v2, double y) {
-	Vertex_t result;
-	result.pos.y = y;
-	if (v2.pos.y == v1.pos.y) {
-		result.pos.x = v1.pos.x;
-		result.uv = v1.uv;
-		result.z = v1.z;
-		return result;
-	}
-	double t = (y - v1.pos.y) / (v2.pos.y - v1.pos.y);
-	result.pos.x = v1.pos.x + (v2.pos.x - v1.pos.x) * t;
-	result.uv.u  = v1.uv.u + (v2.uv.u - v1.uv.u) * t;
-	result.uv.v  = v1.uv.v + (v2.uv.v - v1.uv.v) * t;
-	result.z	 = v1.z + (v2.z - v1.z) * t;
-	return result;
+
+#ifdef PERSP
+  #define Z_CLEAR   0.0f
+  #define Z_PASS(n, old) ((n) > (old))
+#else
+  #define Z_CLEAR   FLT_MAX
+  #define Z_PASS(n, old) ((n) < (old))
+#endif
+
+void clear_zbuf(void)
+{
+    for (int i = 0; i < H * W; i++) g_zbuf[i] = Z_CLEAR;
+}
+
+typedef struct { double a0, gx, gy; } Plane_t;
+
+static inline Plane_t make_plane(double a1, double a2, double a3,
+                                 double dx2, double dy2,
+                                 double dx3, double dy3, double inv_area)
+{
+    double da2 = a2 - a1, da3 = a3 - a1;
+    Plane_t p = { a1,
+                  (da2 * dy3 - da3 * dy2) * inv_area,
+                  (dx2 * da3 - dx3 * da2) * inv_area };
+    return p;
 }
 
 void scanline_raster(Vertex_t p1, Vertex_t p2, Vertex_t p3,
-			subfunc_t subfunc, drawpixel_t drawpixel) {
-	Vertex_t tmp;
-	if (p1.pos.y > p2.pos.y) { tmp = p1; p1 = p2; p2 = tmp; }
-	if (p1.pos.y > p3.pos.y) { tmp = p1; p1 = p3; p3 = tmp; }
-	if (p2.pos.y > p3.pos.y) { tmp = p2; p2 = p3; p3 = tmp; }
+                     subfunc_t subfunc, drawpixel_t drawpixel)
+{
+    Vertex_t a = p1, b = p2, c = p3, t;
+    if (a.pos.y > b.pos.y) { t = a; a = b; b = t; }
+    if (b.pos.y > c.pos.y) { t = b; b = c; c = t; }
+    if (a.pos.y > b.pos.y) { t = a; a = b; b = t; }
 
-	int y1 = (int)round(p1.pos.y);
-	int y3 = (int)round(p3.pos.y);
-	if (y1 == y3) return;
+    if (c.pos.y <= a.pos.y) return;
 
-	for (int y = y1; y < y3; y++) {
-		Vertex_t start_v = (y < round(p2.pos.y)) ? p1 : p2;
-		Vertex_t side_v  = (y < round(p2.pos.y)) ? p2 : p3;
+    double ax = a.pos.x, ay = a.pos.y;
+    double dx2 = b.pos.x - ax, dy2 = b.pos.y - ay;
+    double dx3 = c.pos.x - ax, dy3 = c.pos.y - ay;
+    double area = dx2 * dy3 - dx3 * dy2;
+    if (area == 0.0) return;
+    double inv_area = 1.0 / area;
 
-		Vertex_t v_short = interpolate_vertex(start_v, side_v, y);
-		Vertex_t v_long  = interpolate_vertex(p1, p3, y);
+#ifdef PERSP
+    double za = 1.0 / a.z, zb = 1.0 / b.z, zc = 1.0 / c.z;
+    double ua = a.uv.u * za, ub = b.uv.u * zb, uc = c.uv.u * zc;
+    double va = a.uv.v * za, vb = b.uv.v * zb, vc = c.uv.v * zc;
+#else
+    double za = a.z,    zb = b.z,    zc = c.z;
+    double ua = a.uv.u, ub = b.uv.u, uc = c.uv.u;
+    double va = a.uv.v, vb = b.uv.v, vc = c.uv.v;
+#endif
+    Plane_t pz = make_plane(za, zb, zc, dx2, dy2, dx3, dy3, inv_area);
+    Plane_t pu = make_plane(ua, ub, uc, dx2, dy2, dx3, dy3, inv_area);
+    Plane_t pv = make_plane(va, vb, vc, dx2, dy2, dx3, dy3, inv_area);
 
-		Vertex_t v_left  = v_short;
-		Vertex_t v_right = v_long;
-		if (v_left.pos.x > v_right.pos.x) {
-			tmp = v_left; v_left = v_right; v_right = tmp;
-		}
+    double s_ac = dx3 / dy3;
+    double s_ab = (dy2 > 0.0) ? dx2 / dy2 : 0.0;
+    double s_bc = (c.pos.y > b.pos.y)
+                ? (c.pos.x - b.pos.x) / (c.pos.y - b.pos.y) : 0.0;
 
-		int start_x = (int)round(v_left.pos.x);
-		int end_x   = (int)round(v_right.pos.x);
+    int y_start = (int)ceil(ay - 0.5);
+    int y_end   = (int)ceil(c.pos.y - 0.5) - 1;
+    if (y_start < 0)     y_start = 0;
+    if (y_end   > H - 1) y_end   = H - 1;
 
-		for (int x = start_x; x < end_x; x++) {
-			double factor = (start_x == end_x) ? 0 : (double)(x - start_x) / (end_x - start_x);
+    for (int y = y_start; y <= y_end; y++) {
+        double yc = y + 0.5;
 
-			UV_t pixel_uv = {
-				v_left.uv.u + (v_right.uv.u - v_left.uv.u) * factor,
-				v_left.uv.v + (v_right.uv.v - v_left.uv.v) * factor
-			};
+        double x_long  = ax + (yc - ay) * s_ac;
+        double x_short = (yc < b.pos.y) ? ax + (yc - ay) * s_ab
+                                        : b.pos.x + (yc - b.pos.y) * s_bc;
+        double xl = x_long < x_short ? x_long  : x_short;
+        double xr = x_long < x_short ? x_short : x_long;
 
-			double pixel_z = v_left.z + (v_right.z - v_left.z) * factor;
+        int xs = (int)ceil(xl - 0.5);
+        int xe = (int)ceil(xr - 0.5) - 1;
+        if (xs < 0)     xs = 0;
+        if (xe > W - 1) xe = W - 1;
+        if (xs > xe) continue;
 
-			subfunc((Vector2_t){x, y}, pixel_uv, pixel_z, drawpixel);
-		}
-	}
+        double dx = (xs + 0.5) - ax, dy = yc - ay;
+        double z = pz.a0 + pz.gx * dx + pz.gy * dy;
+        double u = pu.a0 + pu.gx * dx + pu.gy * dy;
+        double v = pv.a0 + pv.gx * dx + pv.gy * dy;
+
+        float *zrow = &g_zbuf[y * W];
+
+        for (int x = xs; x <= xe; x++) {
+            if (Z_PASS((float)z, zrow[x])) {
+                zrow[x] = (float)z;
+#ifdef PERSP
+                double w = 1.0 / z;
+                UV_t uv = { u * w, v * w };
+                subfunc((Vector2_t){ x, y }, uv, w, drawpixel);
+#else
+                UV_t uv = { u, v };
+                subfunc((Vector2_t){ x, y }, uv, z, drawpixel);
+#endif
+            }
+            z += pz.gx; u += pu.gx; v += pv.gx;
+        }
+    }
 }
 
 
@@ -125,30 +169,26 @@ void render_solid(Vertex_t *vertexes, int count, drawpixel_t drawpixel) {
 
 }
 
-void render_solid_texture(Vertex_t *vertexes, int count, drawpixel_t drawpixel) {
-	void cb_filler(Vector2_t pixel, UV_t uv, double z, drawpixel_t drawpixel) {
-		if (pixel.x < 0 || pixel.x >= W ||
-		pixel.y < 0 || pixel.y >= H) {
-			return;
-		}
+static inline int tex_coord(double t)
+{
+    int i = (int)(t * TEX_SIZE);
+    if (i < 0)             return 0;
+    if (i > TEX_SIZE - 1)  return TEX_SIZE - 1;
+    return i;
+}
 
-		int buffer_index = (int)pixel.y * W + (int)pixel.x;
+static void cb_texture(Vector2_t pixel, UV_t uv, double z, drawpixel_t drawpixel)
+{
+    (void)z;
+    int tx = tex_coord(uv.u);
+    int ty = tex_coord(uv.v);
+    drawpixel(pixel, texture[ty * TEX_SIZE + tx]);
+}
 
-		if (z >= z_buffer[buffer_index]) {
-			return;
-		}
-
-		z_buffer[buffer_index] = z;
-		int tx = (int)(uv.u * 63);
-		int ty = (int)(uv.v * 63);
-		unsigned char color = texture[ty * 64 + tx];
-		drawpixel(pixel, color);
-		return;
-	}
-
-	for (int i = 0; i < count; i = i + 3) {
-		scanline_raster(vertexes[0 + i], vertexes[1 + i], vertexes[2 + i],
-				cb_filler, drawpixel);
-	}
-
+void render_solid_texture(Vertex_t *vertexes, int count, drawpixel_t drawpixel)
+{
+    for (int i = 0; i + 2 < count; i += 3) {
+        scanline_raster(vertexes[i], vertexes[i + 1], vertexes[i + 2],
+                        cb_texture, drawpixel);
+    }
 }
