@@ -6,9 +6,9 @@
 #define W 256
 char screen[H * W];
 
-void drawpixel(Vector2_t a) {
+void drawpixel(Vector2_t a, unsigned char color) {
 	if ((int)a.x >= 0 && (int)a.x < W && (int)a.y >= 0 && (int)a.y < H) {
-		screen[(int)a.y * W + (int)a.x] = 0xff;
+		screen[(int)a.y * W + (int)a.x] = color;
 	}
 }
 
@@ -18,9 +18,9 @@ void print_fbdata() {
 	}
 }
 
-void Render_frame(Vector3_t *vertices, int vertices_count,
+void Render_frame(Vector3_t *vertices, int vertices_count, UV_t *uvs,
 		Vector3_t camera_pos, Vector3_t camera_rot) {
-	Vector2_t t[vertices_count];
+	Vertex_t t[vertices_count];
 	const Vector2_t screen_dim = {H, W};
 	const double fov = fov_factor(75.0, 256.0);
 
@@ -29,6 +29,8 @@ void Render_frame(Vector3_t *vertices, int vertices_count,
 		t_2 = euler_rotate(camera_rot, t_2);
 		t[i] = xyz_to_xy(t_2, fov, screen_dim);
 	}
+	fill_uvs(t, vertices_count, uvs);
 
+	render_solid_texture(t, vertices_count, drawpixel);
 	render_wireframe(t, vertices_count, drawpixel);
 }
