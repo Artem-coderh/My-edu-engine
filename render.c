@@ -50,72 +50,59 @@ void render_wireframe(Vertex_t *vertexes, int count, drawpixel_t drawpixel) {
 	return;
 }
 
-// Вспомогательная функция для интерполяции UV между двумя точками на нужной высоте Y
 UV_t interpolate_uv(Vertex_t v1, Vertex_t v2, double y) {
-    if (v2.pos.y == v1.pos.y) return v1.uv;
-    double t = (y - v1.pos.y) / (v2.pos.y - v1.pos.y);
-    return (UV_t){
-        v1.uv.u + (v2.uv.u - v1.uv.u) * t,
-        v1.uv.v + (v2.uv.v - v1.uv.v) * t
-    };
+	if (v2.pos.y == v1.pos.y) return v1.uv;
+	double t = (y - v1.pos.y) / (v2.pos.y - v1.pos.y);
+	return (UV_t){
+		v1.uv.u + (v2.uv.u - v1.uv.u) * t,
+		v1.uv.v + (v2.uv.v - v1.uv.v) * t
+	};
 }
 
 void scanline_raster(Vertex_t p1, Vertex_t p2, Vertex_t p3,
 		subfunc_t subfunc, drawpixel_t drawpixel) {
-    // 1. Сортировка вершин по Y (p1 самая верхняя, p3 самая нижняя)
-    Vertex_t tmp;
-    if (p1.pos.y > p2.pos.y) { tmp = p1; p1 = p2; p2 = tmp; }
-    if (p1.pos.y > p3.pos.y) { tmp = p1; p1 = p3; p3 = tmp; }
-    if (p2.pos.y > p3.pos.y) { tmp = p2; p2 = p3; p3 = tmp; }
+	Vertex_t tmp;
+	if (p1.pos.y > p2.pos.y) { tmp = p1; p1 = p2; p2 = tmp; }
+	if (p1.pos.y > p3.pos.y) { tmp = p1; p1 = p3; p3 = tmp; }
+	if (p2.pos.y > p3.pos.y) { tmp = p2; p2 = p3; p3 = tmp; }
 
-    int y1 = (int)round(p1.pos.y);
-    int y3 = (int)round(p3.pos.y);
-    if (y1 == y3) return; // Пустой треугольник
+	int y1 = (int)round(p1.pos.y);
+	int y3 = (int)round(p3.pos.y);
 
-    // 2. Главный цикл по ВСЕМ строкам треугольника сверху вниз
-    for (int y = y1; y < y3; y++) {
-        // Определяем, в какой половине треугольника мы находимся,
-        // чтобы выбрать правильное промежуточное ребро (p1-p2 или p2-p3)
-        Vertex_t side_v = (y < round(p2.pos.y)) ? p2 : p3;
-        Vertex_t start_v = (y < round(p2.pos.y)) ? p1 : p2;
+	for (int y = y1; y < y3; y++) {
+		Vertex_t side_v = (y < round(p2.pos.y)) ? p2 : p3;
+		Vertex_t start_v = (y < round(p2.pos.y)) ? p1 : p2;
 
-        // Находим X и UV на коротком ребре (левом или правом — пока не важно)
-        double t_short = (start_v.pos.y == side_v.pos.y) ? 0 : (y - start_v.pos.y) / (side_v.pos.y - start_v.pos.y);
-        double x_short = start_v.pos.x + (side_v.pos.x - start_v.pos.x) * t_short;
-        UV_t uv_short = interpolate_uv(start_v, side_v, y);
+		double t_short = (start_v.pos.y == side_v.pos.y) ? 0 : (y - start_v.pos.y) / (side_v.pos.y - start_v.pos.y);
+		double x_short = start_v.pos.x + (side_v.pos.x - start_v.pos.x) * t_short;
+		UV_t uv_short = interpolate_uv(start_v, side_v, y);
 
-        // Находим X и UV на длинном сквозном ребре (p1 - p3)
-        double t_long = (y - p1.pos.y) / (p3.pos.y - p1.pos.y);
-        double x_long = p1.pos.x + (p3.pos.x - p1.pos.x) * t_long;
-        UV_t uv_long = interpolate_uv(p1, p3, y);
+		double t_long = (y - p1.pos.y) / (p3.pos.y - p1.pos.y);
+		double x_long = p1.pos.x + (p3.pos.x - p1.pos.x) * t_long;
+		UV_t uv_long = interpolate_uv(p1, p3, y);
 
-        // 3. Жестко определяем, где ЛЕВАЯ граница, а где ПРАВАЯ
-        double x_left = x_short;  UV_t uv_left = uv_short;
-        double x_right = x_long; UV_t uv_right = uv_long;
+		double x_left = x_short;  UV_t uv_left = uv_short;
+		double x_right = x_long; UV_t uv_right = uv_long;
 
-        if (x_left > x_right) {
-            // Переворачиваем, если длинное ребро оказалось слева
-            double tx = x_left; x_left = x_right; x_right = tx;
-            UV_t tuv = uv_left; uv_left = uv_right; uv_right = tuv;
-        }
+		if (x_left > x_right) {
+			double tx = x_left; x_left = x_right; x_right = tx;
+			UV_t tuv = uv_left; uv_left = uv_right; uv_right = tuv;
+		}
 
-        int start_x = (int)round(x_left);
-        int end_x = (int)round(x_right);
+		int start_x = (int)round(x_left);
+		int end_x = (int)round(x_right);
 
-        // 4. Отрисовка строки пикселей (интерполяция UV по горизонтали)
-        for (int x = start_x; x < end_x; x++) {
-            double factor = (start_x == end_x) ? 0 : (double)(x - start_x) / (end_x - start_x);
+		for (int x = start_x; x < end_x; x++) {
+			double factor = (start_x == end_x) ? 0 : (double)(x - start_x) / (end_x - start_x);
 
-            // Финальный UV пикселя
-            UV_t pixel_uv = {
-                uv_left.u + (uv_right.u - uv_left.u) * factor,
-                uv_left.v + (uv_right.v - uv_left.v) * factor
-            };
+			UV_t pixel_uv = {
+				uv_left.u + (uv_right.u - uv_left.u) * factor,
+				uv_left.v + (uv_right.v - uv_left.v) * factor
+			};
 
-            // Передаем в вашу подфункцию (нужно будет обновить ее сигнатуру под UV)
-            subfunc((Vector2_t){x, y}, pixel_uv, drawpixel);
-        }
-    }
+			subfunc((Vector2_t){x, y}, pixel_uv, drawpixel);
+		}
+	}
 }
 
 
