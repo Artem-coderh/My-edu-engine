@@ -11,4 +11,4 @@ void scanline_raster(Vertex_t p1, Vertex_t p2, Vertex_t p3,
 void render_solid(Vertex_t *vertexes, int count, drawpixel_t drawpixel);
 void render_solid_texture(Vertex_t *vertexes, int count, drawpixel_t drawpixel);
 void clear_zbuf(void);
-double edge_cross_product(Vector2_t p1, Vector2_t p2, Vector2_t p3);
+void obj2world(int *polys, int polys_count, Vector3_t *vertices, Vector3_t *output);

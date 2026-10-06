@@ -199,3 +199,9 @@ void render_solid_texture(Vertex_t *vertexes, int count, drawpixel_t drawpixel)
                         cb_texture, drawpixel);
     }
 }
+
+void obj2world(int *polys, int polys_count, Vector3_t *vertices, Vector3_t *output) {
+	for (int i = 0; i < polys_count; i++) {
+		output[i] = vertices[polys[i] - 1];
+	}
+}
