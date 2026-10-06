@@ -1,4 +1,4 @@
-#include "custom_math.h"
+#include "backend.h"
 #include "render.h"
 #include <stdio.h>
 
@@ -28,10 +28,14 @@ void Render_frame(Vector3_t *vertices, int vertices_count, UV_t *uvs,
 		Vector3_t t_2 = euler_rotate(camera_rot, vertices[i]);
 		t_2 = move_to_xyz(t_2, camera_pos);
 		t[i] = xyz_to_xy(t_2, fov, screen_dim);
-		t[i].uv = uvs[i];
+		if (uvs == NULL) {
+			t[i].uv = (UV_t){0.0, 0.0};
+		} else {
+			t[i].uv = uvs[i];
+		}
 		t[i].z = t_2.z;
 	}
 
-	render_solid_texture(t, vertices_count, drawpixel);
+	render_solid(t, vertices_count, drawpixel);
 //	render_wireframe(t, vertices_count, drawpixel);
 }

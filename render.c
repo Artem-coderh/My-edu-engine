@@ -185,9 +185,16 @@ static void cb_texture(Vector2_t pixel, UV_t uv, double z, drawpixel_t drawpixel
     drawpixel(pixel, texture[ty * TEX_SIZE + tx]);
 }
 
+static inline double tri_area2(Vertex_t a, Vertex_t b, Vertex_t c) {
+	return    (b.pos.x - a.pos.x) * (c.pos.y - a.pos.y)
+		- (c.pos.x - a.pos.x) * (b.pos.y - a.pos.y);
+}
+
 void render_solid_texture(Vertex_t *vertexes, int count, drawpixel_t drawpixel)
 {
     for (int i = 0; i + 2 < count; i += 3) {
+	if (tri_area2(vertexes[i], vertexes[i + 1], vertexes[i + 2]) <= 0)
+		continue;
         scanline_raster(vertexes[i], vertexes[i + 1], vertexes[i + 2],
                         cb_texture, drawpixel);
     }
