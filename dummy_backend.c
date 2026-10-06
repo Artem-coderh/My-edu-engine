@@ -36,6 +36,7 @@ void Render_frame(Vector3_t *vertices, int vertices_count, UV_t *uvs,
 		t[i].z = t_2.z;
 	}
 
-	render_solid(t, vertices_count, drawpixel);
+	render_solid_shade(t, vertices_count, drawpixel, vertices, (Vector3_t){0.3, 0.6, -0.7});
+//	render_solid(t, vertices_count, drawpixel);
 //	render_wireframe(t, vertices_count, drawpixel);
 }

@@ -60,7 +60,7 @@ Vector3_t vertices[36] = {
 */
 int main() {
 	const Vector3_t ZEROVEC = {0,0,0};
-	const Vector3_t POSCAM = {0,1,-5};
+	const Vector3_t POSCAM = {0,2,-5};
 	Vector3_t world_vertices[7000];
 	obj2world(polys, 6768, vertices, world_vertices);
 
